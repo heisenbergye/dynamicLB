@@ -1,0 +1,65 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginx-upsync
+  labels:
+    run: nginx-upsync
+spec:
+  type: ClusterIP
+  ports:
+  - port: 8080
+    targetPort: 80
+    protocol: TCP
+    name: http
+  - port: 443
+    targetPort: 443
+    protocol: TCP
+    name: https
+  selector:
+    run: nginx-upsync
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-upsync
+spec:
+  selector:
+    matchLabels:
+      run: nginx-upsync
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        run: nginx-upsync
+    spec:
+      serviceAccountName: consul-server
+      volumes:
+      - name: configmap-volume
+        configMap:
+          name: nginx-conf
+      containers:
+      - name: mynginx
+        image: heisenbergye/nginx-upsync:alpine-lua
+        ports:
+        - containerPort: 443
+        - containerPort: 80
+        volumeMounts:
+        - mountPath: /etc/nginx/nginx.conf
+          name: configmap-volume
+          subPath: nginx.conf
+---
+kind: Route
+apiVersion: route.openshift.io/v1
+metadata:
+  name: nginx-upsync
+  namespace: helmstuff
+  labels:
+    run: nginx-upsync
+spec:
+  to:
+    kind: Service
+    name: nginx-upsync
+    weight: 100
+  port:
+    targetPort: http
+  wildcardPolicy: None
